@@ -5,14 +5,20 @@ import 'package:provider/provider.dart';
 import 'package:tag_image/controller/home_controller.dart';
 
 class ImageView extends StatelessWidget {
-  const ImageView({super.key, required this.imgeString});
-  final String imgeString;
-
+  const ImageView({super.key, required this.imageData, required this.id});
+  final String id;
+  final ImageData imageData;
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<HomeController>();
+
     final markers = controller.tags;
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await controller.savePhoto(id, imageData.imageUrl);
+        },
+      ),
       appBar: AppBar(),
       body: Stack(
         children: [
@@ -23,7 +29,7 @@ class ImageView extends StatelessWidget {
                   log(tap.localPosition.toString());
                   controller.ontap(tap.localPosition, context);
                 },
-                child: Image.network(imgeString)),
+                child: Image.network(imageData.imageUrl)),
           ),
           ...markers.map(
             (tag) => Positioned(

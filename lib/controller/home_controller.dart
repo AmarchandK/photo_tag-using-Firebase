@@ -4,13 +4,16 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class HomeController extends ChangeNotifier {
+  CollectionReference photos = FirebaseFirestore.instance.collection('Photos');
+
   FirebaseStorage storage = FirebaseStorage.instance;
   File? photo;
   final ImagePicker _picker = ImagePicker();
   final List<TagData> tags = [];
-  final textController = TextEditingController();
+  final TextEditingController textController = TextEditingController();
   ontap(Offset offset, BuildContext context) {
     showDialog(
       context: context,
@@ -21,27 +24,35 @@ class HomeController extends ChangeNotifier {
         actions: [
           MaterialButton(
             onPressed: () {
+              textController.clear();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+          MaterialButton(
+            onPressed: () async {
               tags.add(
-                  TagData(data: textController.text.trim(), offset: offset));
+                TagData(data: textController.text.trim(), offset: offset),
+              );
+
               textController.clear();
               Navigator.of(context).pop();
               notifyListeners();
             },
             child: const Text('Add Tag'),
           ),
-          MaterialButton(
-            onPressed: () {
-              textController.clear();
-              Navigator.of(context).pop();
-            },
-            child: const Text('Cancel'),
-          )
         ],
         content: TextField(
           controller: textController,
         ),
       ),
     );
+  }
+
+  savePhoto(String id, String imageUrl) async {
+    final ImageData image = ImageData(imageUrl: imageUrl, tags: tags);
+   
+    await photos.doc(id).set(image.toJson()).then((value) => print('updated'));
   }
 
   Future imgFromGallery(context) async {
@@ -61,6 +72,11 @@ class HomeController extends ChangeNotifier {
     try {
       final Reference ref = storage.ref(fileName);
       await ref.putFile(photo!);
+      final imageUrl = await ref.getDownloadURL();
+      await photos
+          .add({'imageUrl': imageUrl, 'tags': []})
+          .then((value) => print("User Added"))
+          .catchError((error, stackTrace) => print(error.toString()));
       loadImages();
     } catch (e) {
       print('error occured');
@@ -122,14 +138,32 @@ class TagData {
   Offset offset;
   String data;
 
-  TagData({
-    required this.data,
-    required this.offset,
-  });
+  TagData({required this.data, required this.offset});
+
+  Map<String, dynamic> toJson() {
+    return {'dx': offset.dx, 'dy': offset.dy, 'data': data};
+  }
+
+  static fromJson(Map<String, dynamic> data) {
+    return TagData(data: data['data'], offset: Offset(data['dx'], data['dy']));
+  }
 }
 
 class ImageData {
   String imageUrl;
   List<TagData> tags;
   ImageData({required this.imageUrl, required this.tags});
+
+  static ImageData fromJson(Map<String, dynamic> data) {
+    return ImageData(
+        imageUrl: data['imageUrl'],
+        tags: List.from(data['tags'].map((e) => TagData.fromJson(e))));
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'imageUrl': imageUrl,
+      'tags': List.from(tags.map((e) => e.toJson()))
+    };
+  }
 }

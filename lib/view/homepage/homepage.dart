@@ -1,4 +1,5 @@
 // ignore_for_file: library_private_types_in_public_api, avoid_print, depend_on_referenced_packages
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,55 +11,62 @@ class ImageUploads extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Stream<QuerySnapshot> _usersStream =
+        FirebaseFirestore.instance.collection('Photos').snapshots();
     final HomeController controller = Provider.of<HomeController>(context);
     return Scaffold(
       appBar: AppBar(),
       body: StreamBuilder(
-        stream: controller.loadImages(),
-        builder: (context, AsyncSnapshot<List<String>> snapshot) {
-          return snapshot.data == null
-              ? const Center(
-                  child: CupertinoActivityIndicator(),
-                )
-              : snapshot.data!.isEmpty
-                  ? const Center(
-                      child: Text('No Data'),
-                    )
-                  : GridView.builder(
-                      itemCount: snapshot.data!.length,
-                      itemBuilder: (context, index) {
-                        final String image = snapshot.data![index];
-                        return GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  ImageView(imgeString: image),
-                            ),
-                          ),
-                          child: Card(
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20.0)),
-                            elevation: 15,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(20),
-                                image: DecorationImage(
-                                  fit: BoxFit.fill,
-                                  image: NetworkImage(
-                                    image,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
+        stream: _usersStream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Text('Something went wrong');
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Text("Loading");
+          }
+          return GridView.builder(
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              final data =
+                  snapshot.data!.docs[index].data()! as Map<String, dynamic>;
+              final String image = data['imageUrl'];
+              final ImageData imageData = ImageData.fromJson(data);
+              return GestureDetector(
+                onTap: () {
+                  final tags = context.read<HomeController>().tags;
+                  tags.clear();
+                  tags.addAll(imageData.tags);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ImageView(imageData: imageData, id :snapshot.data!.docs[index].id),
+                    ),
+                  );
+                },
+                child: Card(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20.0)),
+                  elevation: 15,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      image: DecorationImage(
+                        fit: BoxFit.fill,
+                        image: NetworkImage(
+                          image,
+                        ),
                       ),
-                    );
+                    ),
+                  ),
+                ),
+              );
+            },
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+            ),
+          );
         },
       ),
       floatingActionButton: FloatingActionButton(
